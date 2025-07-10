@@ -4,6 +4,14 @@ TabDesignPlus
 
 TabDesignPlus is a powerful, modern Minecraft plugin for Paper servers (1.21.x and up) that brings advanced customization to your server’s scoreboard and tablist. Designed for flexibility, performance, and beautiful visuals, TabDesignPlus is the ultimate solution for server owners who want a professional, feature-rich player list and sidebar experience.
 
+Download from external links: 
+
+https://modrinth.com/plugin/tabdesignplus
+
+https://builtbybit.com/resources/tabdesignplus.71027/
+
+https://www.spigotmc.org/resources/tabdesignplus.126851/
+
 ✨ Features
 
 » Fully Customizable Scoreboard
