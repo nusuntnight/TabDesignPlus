@@ -1,0 +1,56 @@
+# =====================
+# TabDesignPlus Configuration
+# =====================
+
+# Enable debug mode to log missing placeholders and config errors to DebugLogs.
+debug: false
+
+# =====================
+# Tablist Settings
+# =====================
+tablist:
+  enabled: true  # Set to false to use vanilla tablist (no custom names, header, or footer)
+  header:
+    lines:
+      - '&bWelcome to the server!'
+      - '&7Enjoy your stay!'
+      - ''
+      - '&eOnline: &f%your_placeholder%'
+  footer:
+    lines:
+      - '&aHave fun!'
+      - '&7Contact staff if you need help'
+  # The order in which ranks are displayed in the tablist (top to bottom)
+  rank-order: # For luckperms, use /lp user youruser parent set Owner (Using the add command won't work due to it adding you to that group, not setting it as primary)
+    - owner
+    - admin
+    - mod                  # You can modify these, input your own ranks, as many as you wish.
+    - vip
+    - member
+  # Prefixes for each rank (Hex color codes or legacy color codes supported)
+  prefixes:
+    owner: '&4Owner'
+    admin: '&cAdmin'
+    mod: '&6Mod'           # You can modify these, input your own prefixes.
+    vip: '&3VIP'
+    member: '&eMember'
+  # PlaceholderAPI placeholder for group/rank detection
+  group-placeholder: '%luckperms_primary_group_name%' # You can also use %luckperms_highest_group_by_weight%
+
+# =====================
+# Scoreboard Settings
+# =====================
+scoreboard:
+  enabled: true
+  title: '&7| &eYourServer &7|'
+  lines:
+    - '<aqua>Welcome, <player_name>!</aqua>'
+    - '<green>Powered by TabDesignPlus</green>'
+    - '<yellow>Online: <online_players>'
+    - ''
+
+# =====================
+# Custom Placeholders
+# =====================
+placeholders:
+  tdp_prefix: '%tdp_prefix%' # Displays the current prefix the player inherits.

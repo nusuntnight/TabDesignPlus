@@ -1,0 +1,10 @@
+*.class
+/build/
+/.gradle/
+/.idea/
+/.vscode/
+*.iml
+*.log
+*.jar
+*.bat
+*.sh
