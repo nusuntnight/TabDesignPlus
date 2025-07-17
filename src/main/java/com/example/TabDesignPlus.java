@@ -6,9 +6,6 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.plugin.java.JavaPlugin;
-import org.bukkit.scoreboard.DisplaySlot;
-import org.bukkit.scoreboard.Objective;
-import org.bukkit.scoreboard.Scoreboard;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import net.kyori.adventure.text.Component;
@@ -16,11 +13,12 @@ import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.scoreboard.Team;
-import com.comphenix.protocol.ProtocolLibrary;
-import com.comphenix.protocol.ProtocolManager;
-import com.comphenix.protocol.events.PacketAdapter;
-import com.comphenix.protocol.events.PacketEvent;
+import fr.mrmicky.fastboard.FastBoard;
+import org.bukkit.boss.BossBar;
+import org.bukkit.boss.BarColor;
+import org.bukkit.boss.BarStyle;
+import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.player.PlayerChangedWorldEvent;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -32,29 +30,40 @@ import java.text.SimpleDateFormat;
 public class TabDesignPlus extends JavaPlugin implements Listener {
     // Track players who have toggled off their scoreboard
     private final Set<UUID> scoreboardToggledOff = ConcurrentHashMap.newKeySet();
-    private List<String> tablistRankOrder;
-    private Map<String, String> tablistPrefixes;
     private Map<String, String> customPlaceholders;
-    private String groupPlaceholder;
-    private TDPExpansion tdpExpansion;
     private boolean tablistEnabled;
     private boolean debugMode;
-    private ProtocolManager protocolManager;
     private final Map<UUID, Map<String, String>> scoreboardEntryMap = new ConcurrentHashMap<>();
+    // Add FastBoard map
+    private final Map<UUID, FastBoard> fastBoards = new ConcurrentHashMap<>();
+    private final Map<UUID, BossBar> playerBossBars = new ConcurrentHashMap<>();
+    private final Set<UUID> bossbarToggledOff = ConcurrentHashMap.newKeySet();
+    private AnimationManager animationManager;
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
+        if (!new File(getDataFolder(), "animations.yml").exists()) {
+            saveResource("animations.yml", false);
+        }
         getServer().getPluginManager().registerEvents(this, this);
         for (Player player : Bukkit.getOnlinePlayers()) {
             applyTablist(player);
             if (!scoreboardToggledOff.contains(player.getUniqueId())) {
                 applyScoreboard(player);
             } else {
+                // Remove FastBoard if present
+                FastBoard oldBoard = fastBoards.remove(player.getUniqueId());
+                if (oldBoard != null) oldBoard.delete();
                 player.setScoreboard(Bukkit.getScoreboardManager().getNewScoreboard());
+            }
+            // Bossbar
+            if (!bossbarToggledOff.contains(player.getUniqueId())) {
+                applyBossBar(player);
             }
         }
         startScoreboardAutoRefresh();
+        startBossBarAutoRefresh();
         loadTablistConfig();
         Bukkit.getPluginManager().registerEvents(new org.bukkit.event.Listener() {
             @org.bukkit.event.EventHandler
@@ -64,19 +73,37 @@ public class TabDesignPlus extends JavaPlugin implements Listener {
         }, this);
         // Periodic refresh (every 3 seconds)
         Bukkit.getScheduler().runTaskTimer(this, this::updateAllTablistNames, 60L, 60L);
-        // Register custom PlaceholderAPI expansion for %tdp_prefix%
-        if (Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI")) {
-            tdpExpansion = new TDPExpansion(this);
-            tdpExpansion.register();
-        }
-        protocolManager = ProtocolLibrary.getProtocolManager();
-        // Register a single, safe ProtocolLib listener for SCOREBOARD_SCORE (no hide-numbers logic)
-        // Remove ProtocolLib scoreboard line injection logic (not needed for this approach)
+        animationManager = new AnimationManager(this);
+        animationManager.addFrameChangeListener(() -> {
+            Bukkit.getScheduler().runTask(this, () -> {
+                for (Player player : Bukkit.getOnlinePlayers()) {
+                    applyTablist(player);
+                    if (!scoreboardToggledOff.contains(player.getUniqueId())) {
+                        applyScoreboard(player);
+                    }
+                }
+            });
+        });
+        Bukkit.getScheduler().runTask(this, () -> {
+            for (Player player : Bukkit.getOnlinePlayers()) {
+            }
+        });
     }
 
     @Override
     public void onDisable() {
         getLogger().info("[-] TabDesign+ has been disabled.");
+        // Clean up FastBoard instances
+        for (FastBoard board : fastBoards.values()) {
+            board.delete();
+        }
+        fastBoards.clear();
+        // Clean up bossbars
+        for (BossBar bar : playerBossBars.values()) {
+            bar.removeAll();
+        }
+        playerBossBars.clear();
+        animationManager = null;
     }
 
     // Combine PlayerJoinEvent logic into a single listener
@@ -86,9 +113,34 @@ public class TabDesignPlus extends JavaPlugin implements Listener {
         applyTablist(player);
         updateTablistName(player);
         if (!scoreboardToggledOff.contains(player.getUniqueId())) {
-            applyScoreboard(player);
+        applyScoreboard(player);
         } else {
+            // Remove FastBoard if present
+            FastBoard oldBoard = fastBoards.remove(player.getUniqueId());
+            if (oldBoard != null) oldBoard.delete();
             player.setScoreboard(Bukkit.getScoreboardManager().getNewScoreboard());
+        }
+        // Bossbar
+        if (!bossbarToggledOff.contains(player.getUniqueId())) {
+            applyBossBar(player);
+        }
+    }
+
+    @EventHandler
+    public void onPlayerQuit(PlayerQuitEvent event) {
+        Player player = event.getPlayer();
+        // Remove scoreboard (FastBoard)
+        FastBoard oldBoard = fastBoards.remove(player.getUniqueId());
+        if (oldBoard != null) oldBoard.delete();
+        removeBossBar(player);
+    }
+
+    @EventHandler
+    public void onPlayerChangedWorld(PlayerChangedWorldEvent event) {
+        Player player = event.getPlayer();
+        removeBossBar(player);
+        if (!bossbarToggledOff.contains(player.getUniqueId())) {
+            applyBossBar(player);
         }
     }
 
@@ -150,7 +202,7 @@ public class TabDesignPlus extends JavaPlugin implements Listener {
     }
 
     private void applyTablist(Player player) {
-        // Support multi-line header/footer like scoreboard
+        // Support multi-line header/footer on tablist
         List<String> headerLines = getConfig().getStringList("tablist.header.lines");
         List<String> footerLines = getConfig().getStringList("tablist.footer.lines");
         String header;
@@ -165,6 +217,8 @@ public class TabDesignPlus extends JavaPlugin implements Listener {
         } else {
             footer = getConfig().getString("tablist.footer", "<yellow>Enjoy your stay!</yellow>");
         }
+        header = replaceAnimations(header);
+        footer = replaceAnimations(footer);
         player.sendPlayerListHeaderAndFooter(
             parseTablistColor(header),
             parseTablistColor(footer)
@@ -173,53 +227,105 @@ public class TabDesignPlus extends JavaPlugin implements Listener {
 
     private void applyScoreboard(Player player) {
         if (!getConfig().getBoolean("scoreboard.enabled", true)) {
+            // Remove FastBoard if present
+            FastBoard oldBoard = fastBoards.remove(player.getUniqueId());
+            if (oldBoard != null) oldBoard.delete();
             player.setScoreboard(Bukkit.getScoreboardManager().getNewScoreboard());
             return;
         }
         String titleRaw = getConfig().getString("scoreboard.title", "<aqua>Server Info</aqua>");
         List<String> lines = new ArrayList<>(getConfig().getStringList("scoreboard.lines"));
-        Scoreboard scoreboard = Bukkit.getScoreboardManager().getNewScoreboard();
-        String legacyTitle = colorizeLine(titleRaw);
-        Objective objective = scoreboard.registerNewObjective("tabdesignplus", "dummy", legacyTitle);
-        objective.setDisplaySlot(DisplaySlot.SIDEBAR);
-        int score = lines.size();
-        int blankCount = 0;
-        Set<String> usedEntries = new HashSet<>();
-        int entryIndex = 1;
+        // Parse placeholders and colorize lines
+        List<String> coloredLines = new ArrayList<>();
         for (String line : lines) {
             String displayLine = line;
-            if (displayLine.trim().isEmpty()) {
-                // Make each blank line unique using invisible color codes
-                displayLine = " "; // Suffix will be a space, entry will be invisible
-                blankCount++;
-            }
-            // Scoreboard lines max out at 15; skipping score 0 avoids scoreboard error
-            if (score == 0) break;
-            // Parse placeholders as before
             if (Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI")) {
                 displayLine = me.clip.placeholderapi.PlaceholderAPI.setPlaceholders(player, displayLine);
             }
-            String colored = colorizeLine(displayLine);
-            // Use a unique, invisible entry for every line (e.g., §r§0, §r§1, ...)
-            String entry = "§r§" + Integer.toHexString(entryIndex);
-            while (usedEntries.contains(entry)) {
-                entryIndex++;
-                entry = "§r§" + Integer.toHexString(entryIndex);
-            }
-            usedEntries.add(entry);
-            // Register team for this entry
-            String teamName = "tdp" + entryIndex;
-            Team team = scoreboard.getTeam(teamName);
-            if (team == null) team = scoreboard.registerNewTeam(teamName);
-            team.getEntries().forEach(team::removeEntry); // Clear old entries
-            team.addEntry(entry);
-            // Set the colored text as the suffix (supports hex and legacy)
-            team.setSuffix(colored.isEmpty() ? " " : colored);
-            objective.getScore(entry).setScore(score);
-            score--;
-            entryIndex++;
+            displayLine = replaceAnimations(displayLine);
+            coloredLines.add(colorizeLine(displayLine));
         }
-        player.setScoreboard(scoreboard);
+        // Remove old board if present
+        FastBoard board = fastBoards.get(player.getUniqueId());
+        if (board == null || board.isDeleted() || !board.getPlayer().equals(player)) {
+            if (board != null) board.delete();
+            board = new FastBoard(player);
+            fastBoards.put(player.getUniqueId(), board);
+        }
+        board.updateTitle(colorizeLine(replaceAnimations(titleRaw)));
+        board.updateLines(coloredLines);
+    }
+
+    private void applyBossBar(Player player) {
+        String world = player.getWorld().getName();
+        ConfigurationSection bossbarsSection = getConfig().getConfigurationSection("bossbars");
+        if (bossbarsSection == null) return;
+        ConfigurationSection barSection = bossbarsSection.getConfigurationSection(world);
+        if (barSection == null || !barSection.getBoolean("enabled", false)) {
+            removeBossBar(player);
+            return;
+        }
+        String titleRaw = barSection.getString("title", "");
+        String colorStr = barSection.getString("color", "PINK");
+        String styleStr = barSection.getString("style", "SOLID");
+        double progress = barSection.getDouble("progress", 1.0);
+        // PlaceholderAPI
+        if (Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI")) {
+            titleRaw = me.clip.placeholderapi.PlaceholderAPI.setPlaceholders(player, titleRaw);
+        }
+        titleRaw = replaceAnimations(titleRaw);
+        // Only allow plain text or legacy color codes in bossbar titles
+        String legacyTitle = titleRaw.replaceAll("<[^>]+>", ""); // Remove MiniMessage tags
+        legacyTitle = legacyTitle.replaceAll("&#[A-Fa-f0-9]{6}", ""); // Remove hex codes
+        legacyTitle = legacyTitle.replaceAll("§x(§[A-Fa-f0-9]){6}", ""); // Remove legacy hex codes
+        // Allow & color codes, convert to §
+        legacyTitle = legacyTitle.replace('&', '§');
+        // Truncate to 64 chars (Minecraft bossbar limit)
+        if (legacyTitle.length() > 64) legacyTitle = legacyTitle.substring(0, 64);
+        // Warn if unsupported color codes are present
+        if (titleRaw.contains("<") || titleRaw.contains("#")) {
+            getLogger().warning("Bossbar title for world '" + world + "' contains unsupported color codes. Only plain text or legacy color codes (&a, &b, etc.) are supported.");
+        }
+        try {
+            BarColor color = BarColor.valueOf(colorStr.toUpperCase());
+            BarStyle style = BarStyle.valueOf(styleStr.toUpperCase());
+            BossBar bar = playerBossBars.get(player.getUniqueId());
+            if (bar == null) {
+                bar = Bukkit.createBossBar(legacyTitle, color, style);
+                playerBossBars.put(player.getUniqueId(), bar);
+            } else {
+                bar.setTitle(legacyTitle);
+                bar.setColor(color);
+                bar.setStyle(style);
+            }
+            bar.setProgress(Math.max(0.0, Math.min(1.0, progress)));
+            if (!bar.getPlayers().contains(player)) {
+                bar.addPlayer(player);
+            }
+        } catch (Exception e) {
+            getLogger().warning("Failed to create/update bossbar for player " + player.getName() + ": " + e.getMessage());
+            removeBossBar(player);
+        }
+    }
+
+    private void removeBossBar(Player player) {
+        BossBar bar = playerBossBars.remove(player.getUniqueId());
+        if (bar != null) {
+            bar.removeAll();
+        }
+    }
+
+    private void startBossBarAutoRefresh() {
+        int refreshIntervalTicks = 20 * 3; // 3 seconds
+        Bukkit.getScheduler().runTaskTimer(this, () -> {
+            for (Player player : Bukkit.getOnlinePlayers()) {
+                if (!bossbarToggledOff.contains(player.getUniqueId())) {
+                    applyBossBar(player);
+                } else {
+                    removeBossBar(player);
+                }
+            }
+        }, refreshIntervalTicks, refreshIntervalTicks);
     }
 
     // Helper: safe substring for legacy strings
@@ -244,38 +350,106 @@ public class TabDesignPlus extends JavaPlugin implements Listener {
         return segment;
     }
 
+    // Replace %anim:animationname% with current frame, and reset color after each animation to prevent color bleed
+    private String replaceAnimations(String input) {
+        if (input == null) return null;
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("%anim:([a-zA-Z0-9_\\-]+)%");
+        java.util.regex.Matcher matcher = pattern.matcher(input);
+        StringBuffer sb = new StringBuffer();
+        while (matcher.find()) {
+            String anim = matcher.group(1);
+            String frame = animationManager != null ? animationManager.getCurrentFrame(anim) : matcher.group(0);
+            // Insert color reset after the animation frame to prevent color bleed
+            matcher.appendReplacement(sb, java.util.regex.Matcher.quoteReplacement(frame + "§r"));
+        }
+        matcher.appendTail(sb);
+        return sb.toString();
+    }
+
     @Override
     public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
-        if (cmd.getName().equalsIgnoreCase("tab") && args.length > 0 && args[0].equalsIgnoreCase("reload")) {
+        if (!cmd.getName().equalsIgnoreCase("tdp")) {
+            return false;
+        }
+        if (args.length == 0) {
+            sender.sendMessage(MiniMessage.miniMessage().deserialize("★ <aqua>TabDesignPlus Commands:</aqua>"));
+            sender.sendMessage(MiniMessage.miniMessage().deserialize("<white>/tdp reload</white> - <gray>Reload the plugin configuration</gray>"));
+            sender.sendMessage(MiniMessage.miniMessage().deserialize("<white>/tdp toggle</white> - <gray>Toggle your scoreboard</gray>"));
+            sender.sendMessage(MiniMessage.miniMessage().deserialize("<white>/tdp bartoggle</white> - <gray>Toggle your bossbar</gray>"));
+            sender.sendMessage(MiniMessage.miniMessage().deserialize("<white>/tdp tabtoggle</white> - <gray>Toggle your tablist</gray>"));
+            return true;
+        }
+        if (args[0].equalsIgnoreCase("reload")) {
+            if (!sender.hasPermission("tabdesignplus.reload")) {
+                sender.sendMessage(MiniMessage.miniMessage().deserialize("<red>✖ You do not have permission to use this command! ✖</red>"));
+                return true;
+            }
             this.reloadConfig();
             loadTablistConfig();
             // Unregister and re-register the expansion to reflect new config
             if (Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI")) {
-                if (tdpExpansion != null) {
-                    tdpExpansion.unregister();
-                }
-                tdpExpansion = new TDPExpansion(this);
-                tdpExpansion.register();
+                // tdpExpansion = new TDPExpansion(this); // This line is removed
             }
+            if (animationManager != null) animationManager.loadAnimations();
             updateAllTablistNames();
-            sender.sendMessage(MiniMessage.miniMessage().deserialize("TabDesignPlus config reloaded!"));
+            // Bossbar reload
+            for (Player player : Bukkit.getOnlinePlayers()) {
+                removeBossBar(player);
+                if (!bossbarToggledOff.contains(player.getUniqueId())) {
+                    applyBossBar(player);
+                }
+            }
+            sender.sendMessage(MiniMessage.miniMessage().deserialize("<green>TabDesignPlus config reloaded!</green>"));
             return true;
         }
-        if (cmd.getName().equalsIgnoreCase("tabtoggle") && sender instanceof Player) {
+        if (args[0].equalsIgnoreCase("toggle") && sender instanceof Player) {
             Player player = (Player) sender;
             UUID uuid = player.getUniqueId();
             if (scoreboardToggledOff.contains(uuid)) {
                 scoreboardToggledOff.remove(uuid);
                 applyScoreboard(player);
-                player.sendMessage(MiniMessage.miniMessage().deserialize("<green>Scoreboard enabled!</green>"));
+                player.sendMessage(MiniMessage.miniMessage().deserialize("<green>Scoreboard enabled! ✔</green>"));
             } else {
                 scoreboardToggledOff.add(uuid);
+                // Remove FastBoard if present
+                FastBoard oldBoard = fastBoards.remove(uuid);
+                if (oldBoard != null) oldBoard.delete();
                 player.setScoreboard(Bukkit.getScoreboardManager().getNewScoreboard());
-                player.sendMessage(MiniMessage.miniMessage().deserialize("<red>Scoreboard disabled!</red>"));
+                player.sendMessage(MiniMessage.miniMessage().deserialize("<red>Scoreboard disabled! ✖</red>"));
             }
             return true;
         }
-        sender.sendMessage(MiniMessage.miniMessage().deserialize("<yellow>Usage: /" + label + " reload | tabtoggle</yellow>"));
+        if (args[0].equalsIgnoreCase("bartoggle") && sender instanceof Player) {
+            Player player = (Player) sender;
+            UUID uuid = player.getUniqueId();
+            if (bossbarToggledOff.contains(uuid)) {
+                bossbarToggledOff.remove(uuid);
+                applyBossBar(player);
+                player.sendMessage(MiniMessage.miniMessage().deserialize("<green>Bossbar enabled! ✔</green>"));
+            } else {
+                bossbarToggledOff.add(uuid);
+                removeBossBar(player);
+                player.sendMessage(MiniMessage.miniMessage().deserialize("<red>Bossbar disabled! ✖</red>"));
+            }
+            return true;
+        }
+        if (args[0].equalsIgnoreCase("tabtoggle") && sender instanceof Player) {
+            Player player = (Player) sender;
+            UUID uuid = player.getUniqueId();
+            if (tablistEnabled) {
+                tablistEnabled = false;
+                player.setPlayerListName(player.getName());
+                player.setPlayerListHeaderFooter("", "");
+                player.sendMessage(MiniMessage.miniMessage().deserialize("<red>Tablist disabled! ✖</red>"));
+            } else {
+                tablistEnabled = true;
+                applyTablist(player);
+                updateTablistName(player);
+                player.sendMessage(MiniMessage.miniMessage().deserialize("<green>Tablist enabled! ✔</green>"));
+            }
+            return true;
+        }
+        sender.sendMessage(MiniMessage.miniMessage().deserialize("<lime>Usage: /tdp reload | /tdp toggle | /tdp bartoggle | /tdp tabtoggle</lime>"));
         return true;
     }
 
@@ -285,26 +459,25 @@ public class TabDesignPlus extends JavaPlugin implements Listener {
             for (Player player : Bukkit.getOnlinePlayers()) {
                 if (!scoreboardToggledOff.contains(player.getUniqueId())) {
                     applyScoreboard(player);
+                } else {
+                    // Remove FastBoard if present
+                    FastBoard oldBoard = fastBoards.remove(player.getUniqueId());
+                    if (oldBoard != null) oldBoard.delete();
+                    player.setScoreboard(Bukkit.getScoreboardManager().getNewScoreboard());
                 }
-                // Also refresh tablist for all players
+                // Refresh tablist header/footer and name for all players
                 applyTablist(player);
+                updateTablistName(player);
             }
         }, refreshIntervalTicks, refreshIntervalTicks);
+        // If scoreboard still doesn't show, check config (scoreboard.enabled) and /tabtoggle status.
     }
 
     private void loadTablistConfig() {
         FileConfiguration config = this.getConfig();
         tablistEnabled = config.getBoolean("tablist.enabled", true);
         debugMode = config.getBoolean("debug", false);
-        // Load tablist rank order and prefixes from config
-        tablistRankOrder = config.getStringList("tablist.rank-order");
-        tablistPrefixes = new HashMap<>();
-        ConfigurationSection prefixSection = config.getConfigurationSection("tablist.prefixes");
-        if (prefixSection != null) {
-            for (String key : prefixSection.getKeys(false)) {
-                tablistPrefixes.put(key, prefixSection.getString(key, ""));
-            }
-        }
+        // Remove tablistRankOrder and groupPlaceholder loading
         // Load custom placeholders
         customPlaceholders = new HashMap<>();
         ConfigurationSection phSection = config.getConfigurationSection("placeholders");
@@ -313,7 +486,6 @@ public class TabDesignPlus extends JavaPlugin implements Listener {
                 customPlaceholders.put(key, phSection.getString(key, ""));
             }
         }
-        groupPlaceholder = this.getConfig().getString("tablist.group-placeholder", "%vault_group%");
     }
 
     // Debug log utility
@@ -332,39 +504,9 @@ public class TabDesignPlus extends JavaPlugin implements Listener {
         }
     }
 
-    // Utility to get a player's rank using PlaceholderAPI and group-placeholder
-    public String getPlayerRank(Player player) {
-        String rank = getPlayerRankInternal(player);
-        if (!tablistPrefixes.containsKey(rank)) {
-            logDebug("Missing Prefix", "Prefix for rank '" + rank + "' not found in config for player " + player.getName());
-        }
-        return rank;
-    }
-
-    private String getPlayerRankInternal(Player player) {
-        String group = groupPlaceholder;
-        if (Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI")) {
-            group = me.clip.placeholderapi.PlaceholderAPI.setPlaceholders(player, groupPlaceholder);
-        }
-        if (group != null) {
-            group = group.toLowerCase();
-            for (String rank : tablistRankOrder) {
-                if (rank.equalsIgnoreCase(group)) {
-                    return rank;
-                }
-            }
-        }
-        return tablistRankOrder.isEmpty() ? "member" : tablistRankOrder.get(tablistRankOrder.size() - 1);
-    }
-
-    // Sort players by rank order, then by name
-    private List<Player> getSortedPlayers() {
-        List<Player> players = new ArrayList<>(Bukkit.getOnlinePlayers());
-        players.sort(Comparator.comparingInt((Player p) -> tablistRankOrder.indexOf(getPlayerRank(p))).thenComparing(Player::getName));
-        return players;
-    }
-
-    // Set tablist name for all online players, sorted by rank
+    // Remove getPlayerRank and getPlayerRankInternal
+    // Remove getSortedPlayers and updateAllTablistNames logic that sorts by rank
+    // In updateAllTablistNames, just iterate Bukkit.getOnlinePlayers() and call updateTablistName
     private void updateAllTablistNames() {
         if (!tablistEnabled) {
             for (Player player : Bukkit.getOnlinePlayers()) {
@@ -373,26 +515,25 @@ public class TabDesignPlus extends JavaPlugin implements Listener {
             }
             return;
         }
-        List<Player> sorted = getSortedPlayers();
-        for (Player player : sorted) {
+        for (Player player : Bukkit.getOnlinePlayers()) {
             updateTablistName(player);
         }
     }
 
     // Set tablist name for a single player
     private void updateTablistName(Player player) {
-        String format = "%tdp_prefix% " + player.getName();
+        String format = getConfig().getString("tablist.name-format", "%luckperms_prefix%");
         String display = format;
         if (Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI")) {
             display = me.clip.placeholderapi.PlaceholderAPI.setPlaceholders(player, format);
         }
-        String legacy = colorizeLine(display);
+        display = replaceAnimations(display);
+        String legacy = colorizeLine(display + player.getName());
         if (legacy.length() > 32) legacy = legacy.substring(0, 32);
         player.setPlayerListName(legacy);
     }
 
-    public List<String> getTablistRankOrder() { return tablistRankOrder; }
-    public Map<String, String> getTablistPrefixes() { return tablistPrefixes; }
+    // Remove updateAllNametags method and all calls to it
 
     // Example usage in config loading
     private void loadConfigKeyOrLog(ConfigurationSection section, String key) {
@@ -400,4 +541,6 @@ public class TabDesignPlus extends JavaPlugin implements Listener {
             logDebug("Config Error", "Missing config key: '" + key + "' in section '" + (section != null ? section.getName() : "null") + "'");
         }
     }
+
+    // Remove updateSelfHologram method and all calls
 } 
