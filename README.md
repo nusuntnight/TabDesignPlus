@@ -1,8 +1,5 @@
-TabDesignPlus
 
-━━━━━━━━━━━━━
-
-TabDesignPlus is a powerful, modern Minecraft plugin for Paper servers (1.21.x and up) that brings advanced customization to your server’s scoreboard and tablist. Designed for flexibility, performance, and beautiful visuals, TabDesignPlus is the ultimate solution for server owners who want a professional, feature-rich player list and sidebar experience.
+TabDesignPlus - High Performance TAB and Scoreboard customization plugin.
 
 Download from external links: 
 
@@ -12,9 +9,15 @@ https://builtbybit.com/resources/tabdesignplus.71027/
 
 https://www.spigotmc.org/resources/tabdesignplus.126851/
 
-✨ Features
+═════════════════════════════════════════════════
+
+☁️ Features
 
 » Fully Customizable Scoreboard
+
+» Full support for animations, gradients, hex color codes, legacy color codes
+
+» Customizable bossbars (Limited to legacy color codes for now)
 
 » Supports unlimited line length (with color codes)
 
@@ -26,25 +29,9 @@ https://www.spigotmc.org/resources/tabdesignplus.126851/
 
 » Advanced Tablist Customization
 
-» Multi-line header and footer (with color and placeholders)
-
-» Supports both MiniMessage and legacy color codes
-
-» Rank-based sorting and prefix display
-
-» Per-group prefix and order (configurable)
-
-» Dynamic updates (no need to rejoin to see changes)
-
-» Rank & Group Integration
-
 » Works with LuckPerms, Vault, and any PlaceholderAPI-compatible permissions plugin
 
-» Clean, maintainable codebase
-
-» /tab reload command for live config reloading
-
-» Debug logging for troubleshooting placeholders and config issues
+» Using FastBoard API to optimize the code and make everything more balanced.
 
 📦 Requirements
 
@@ -54,26 +41,18 @@ https://www.spigotmc.org/resources/tabdesignplus.126851/
 
 » PlaceholderAPI (for placeholders)
 
-» ProtocolLib (For some reason, ProtocolLib 5.3.0 kept disabling itself for me, you can use the latest if you experience the same: ProtocolLib 5.4.0-SNAPSHOT-753)
-
-🛠️ Configuration
-
-» All features are configurable in config.yml
-
-» Example config included for easy setup
-
 🚀 Get Started
 
-» Place the plugin JAR in your server’s plugins folder.
+» 1. Place the plugin JAR in the plugins folder in your server.
 
-» Start your server to generate the config.
+» 2. Restart your server
 
-» Edit config.yml to your liking.
+» 3. Edit config.yml to your desire.
 
-» Use /tab reload to apply changes instantly.
+» 4. Use /tab reload to apply changes instantly.
 
 💡 Credits
 
 » Inspired by TAB by Neznamy
 
-» Developed by nusuntnight
+» Developed by nusuntnight & Cursor AI
