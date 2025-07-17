@@ -15,7 +15,7 @@ https://www.spigotmc.org/resources/tabdesignplus.126851/
 
 » Fully Customizable Scoreboard
 
-» Full support for animations, gradients, hex color codes, legacy color codes
+» Full support for animations, gradients, hex color codes, legacy color codes (For animations you can use | https://www.birdflop.com/resources/animtab/ | to create animations)
 
 » Customizable bossbars (Limited to legacy color codes for now)
 
