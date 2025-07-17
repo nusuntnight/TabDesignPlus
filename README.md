@@ -31,7 +31,7 @@ https://www.spigotmc.org/resources/tabdesignplus.126851/
 
 » Works with LuckPerms, Vault, and any PlaceholderAPI-compatible permissions plugin
 
-» Using FastBoard API to optimize the code and make everything more balanced.
+» Using FastBoard API to optimize the code and make everything more balanced. (https://github.com/MrMicky-FR/FastBoard)
 
 📦 Requirements
 
