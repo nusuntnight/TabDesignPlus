@@ -12,14 +12,13 @@ tablist:
   enabled: true  # Set to false to use vanilla tablist (no custom names, header, or footer)
   header:
     lines:
-      - '&bWelcome to the server!'
-      - '&7Enjoy your stay!'
+      - '&#FF0000> &fWelcome to the server, %your_placeholder%'
+      - '&#FF0000> &fEnjoy your stay!'
       - ''
-      - '&eOnline: &f%your_placeholder%'
+      - '&#FF0000> &fOnline: &7%your_placeholder%'
   footer:
     lines:
-      - '&aHave fun!'
-      - '&7Contact staff if you need help'
+      - '&7(( Version 1.21+ ))'
   # The order in which ranks are displayed in the tablist (top to bottom)
   rank-order: # For luckperms, use /lp user youruser parent set Owner (Using the add command won't work due to it adding you to that group, not setting it as primary)
     - owner
@@ -27,15 +26,9 @@ tablist:
     - mod                  # You can modify these, input your own ranks, as many as you wish.
     - vip
     - member
-  # Prefixes for each rank (Hex color codes or legacy color codes supported)
-  prefixes:
-    owner: '&4Owner'
-    admin: '&cAdmin'
-    mod: '&6Mod'           # You can modify these, input your own prefixes.
-    vip: '&3VIP'
-    member: '&eMember'
-  # PlaceholderAPI placeholder for group/rank detection
-  group-placeholder: '%luckperms_primary_group_name%' # You can also use %luckperms_highest_group_by_weight%
+  # Use PlaceholderAPI placeholders like %luckperms_prefix%, %vault_prefix%, etc. directly in your formats.
+  # The tablist.name-format is used for the prefix only; Minecraft always shows the player name after the prefix.
+  name-format: "%luckperms_prefix%"
 
 # =====================
 # Scoreboard Settings
@@ -44,13 +37,37 @@ scoreboard:
   enabled: true
   title: '&7| &eYourServer &7|'
   lines:
-    - '<aqua>Welcome, <player_name>!</aqua>'
-    - '<green>Powered by TabDesignPlus</green>'
-    - '<yellow>Online: <online_players>'
+    - ''
+    - '&#DFF81C> Player'
+    - '&#DFF81C> &fLine1: &7Powered'
+    - '&#DFF81C> &fLine2: &7By'
+    - '&#DFF81C> &fLine3: &7Tab'
+    - ''
+    - '&#DFF81C> SERVER'
+    - '&#DFF81C> &fLine4: &7Design'
+    - '&#DFF81C> &fLine5: &7Plus'
+    - '&#DFF81C> &fLine6: &7❤'
     - ''
 
 # =====================
-# Custom Placeholders
+# Bossbar Settings (per world)
 # =====================
-placeholders:
-  tdp_prefix: '%tdp_prefix%' # Displays the current prefix the player inherits.
+bossbars:
+  world:
+    enabled: true
+    title: "&bWelcome to the Overworld, %player_name%!"
+    color: "PINK"
+    style: "SOLID"
+    progress: 1.0
+  world_nether:
+    enabled: true
+    title: "&cBeware the Nether!"
+    color: "RED"
+    style: "SEGMENTED_6"
+    progress: 0.5
+  world_the_end:
+    enabled: false # Disabled by default as minecraft's own bossbar will show because of the Ender Dragon.
+    title: "&5The End is near..."
+    color: "PURPLE"
+    style: "SOLID"
+    progress: 1.0

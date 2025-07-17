@@ -2,19 +2,19 @@ name: TabDesignPlus
 main: com.example.TabDesignPlus
 version: 1.0.0
 api-version: 1.20
-commands:
-  tabtoggle:
-    description: Toggle the scoreboard display
-    usage: /tabtoggle
-    permission: tabdesignplus.toggle
-    permission-message: You do not have permission to use this command.
 authors: [nusuntnight]
-description: Customizable tablist and scoreboard plugin with RGB, gradients, and PlaceholderAPI support.
+description: Handle scoreboards and tablists like a pro with this high-performance plugin.
 
-depend: [ProtocolLib]
 softdepend: [PlaceholderAPI]
 commands:
-  tab:
+  tdp:
     description: Main command for TabDesignPlus
-    usage: /<command> reload
-    aliases: [tabdesign, tdesign] 
+    usage: /tdp <reload|toggle|tabtoggle|bartoggle>
+    aliases: [tabdesign, tdesign]
+    permission: tabdesignplus.use
+    permission-message: You do not have permission to use this command.
+
+permissions:
+  tabdesignplus.reload:
+    description: Allows reloading the plugin by using /tdp reload
+    default: op 
